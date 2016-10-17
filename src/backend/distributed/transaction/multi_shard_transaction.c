@@ -20,6 +20,7 @@
 #include "distributed/metadata_cache.h"
 #include "distributed/multi_shard_transaction.h"
 #include "distributed/shardinterval_utils.h"
+#include "distributed/transaction_recovery.h"
 #include "distributed/worker_manager.h"
 #include "nodes/pg_list.h"
 #include "storage/ipc.h"
@@ -51,6 +52,8 @@ OpenTransactionsToAllShardPlacements(List *shardIntervalList, char *userName)
 
 	if (shardConnectionHash == NULL)
 	{
+		InitializeDistributedTransaction();
+
 		shardConnectionHash = CreateShardConnectionHash(TopTransactionContext);
 	}
 
@@ -299,6 +302,7 @@ CompleteShardPlacementTransactions(XactEvent event, void *arg)
 		if (MultiShardCommitProtocol == COMMIT_PROTOCOL_2PC)
 		{
 			PrepareRemoteTransactions(connectionList);
+			LogPreparedTransactions(connectionList);
 		}
 
 		return;
