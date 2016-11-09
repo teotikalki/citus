@@ -644,7 +644,7 @@ CitusHasBeenLoaded(void)
 
 		extensionLoaded = extensionPresent && extensionScriptExecuted;
 
-		if (extensionLoaded)
+		if (!IsBinaryUpgrade && extensionLoaded)
 		{
 			/*
 			 * InvalidateDistRelationCacheCallback resets state such as extensionLoaded
@@ -653,6 +653,9 @@ CitusHasBeenLoaded(void)
 			 *
 			 * Ensure InvalidateDistRelationCacheCallback will notice those changes
 			 * by caching pg_dist_partition's oid.
+			 *
+			 * We skip these checks during upgrade since pg_dist_partition is not
+			 * present during early stages of upgrade operation.
 			 */
 			DistPartitionRelationId();
 		}
