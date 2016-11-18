@@ -84,6 +84,7 @@
 #include "distributed/pg_dist_partition.h"
 #include "distributed/resource_lock.h"
 #include "distributed/shardinterval_utils.h"
+#include "distributed/transaction_recovery.h"
 #include "distributed/worker_protocol.h"
 #include "executor/execdesc.h"
 #include "executor/executor.h"
@@ -585,6 +586,7 @@ CopyToExistingShards(CopyStmt *copyStatement, char *completionTag)
 		if (MultiShardCommitProtocol == COMMIT_PROTOCOL_2PC)
 		{
 			PrepareRemoteTransactions(connectionList);
+			LogPreparedTransactions(connectionList);
 		}
 
 		EndCopyFrom(copyState);
