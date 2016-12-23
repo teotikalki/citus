@@ -464,6 +464,7 @@ RouterModifyTaskForShardInterval(Query *originalQuery, ShardInterval *shardInter
 	modifyTask->taskPlacementList = insertShardPlacementList;
 	modifyTask->upsertQuery = upsertQuery;
 	modifyTask->selectShardList = selectShardList;
+	modifyTask->replicationModel = ReplicationModel(distributedTableId);
 
 	return modifyTask;
 }
@@ -1617,6 +1618,7 @@ RouterModifyTask(Query *originalQuery, Query *query)
 {
 	ShardInterval *shardInterval = TargetShardIntervalForModify(query);
 	uint64 shardId = shardInterval->shardId;
+	Oid distributedTableId = shardInterval->relationId;
 	StringInfo queryString = makeStringInfo();
 	Task *modifyTask = NULL;
 	bool upsertQuery = false;
@@ -1651,6 +1653,7 @@ RouterModifyTask(Query *originalQuery, Query *query)
 	modifyTask->anchorShardId = shardId;
 	modifyTask->dependedTaskList = NIL;
 	modifyTask->upsertQuery = upsertQuery;
+	modifyTask->replicationModel = ReplicationModel(distributedTableId);
 
 	return modifyTask;
 }
@@ -1943,6 +1946,12 @@ RouterSelectTask(Query *originalQuery, RelationRestrictionContext *restrictionCo
 	task->anchorShardId = shardId;
 	task->dependedTaskList = NIL;
 	task->upsertQuery = upsertQuery;
+
+	/*
+	 * We currently do not take replication model into account for tasks other
+	 * than modifications. Thus, set it to invalid.
+	 */
+	task->replicationModel = REPLICATION_MODEL_INVALID;
 
 	return task;
 }

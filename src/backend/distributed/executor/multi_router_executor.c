@@ -93,6 +93,7 @@ static HTAB * CreateXactParticipantHash(void);
 static void ReacquireMetadataLocks(List *taskList);
 static bool ExecuteSingleTask(QueryDesc *queryDesc, Task *task,
 							  bool isModificationQuery, bool expectResults);
+static void GetPlacementConnectionsReadyForTwoPhaseCommit(List *taskPlacementList);
 static void ExecuteMultipleTasks(QueryDesc *queryDesc, List *taskList,
 								 bool isModificationQuery, bool expectResults);
 static int64 ExecuteModifyTasks(List *taskList, bool expectResults,
@@ -732,6 +733,7 @@ ExecuteSingleTask(QueryDesc *queryDesc, Task *task,
 	int64 affectedTupleCount = -1;
 	bool gotResults = false;
 	char *queryString = task->queryString;
+	bool taskRequiresTwoPhaseCommit = (task->replicationModel == REPLICATION_MODEL_2PC);
 
 	if (XactModificationLevel == XACT_MODIFICATION_MULTI_SHARD)
 	{
@@ -752,8 +754,27 @@ ExecuteSingleTask(QueryDesc *queryDesc, Task *task,
 		InitTransactionStateForTask(task);
 	}
 
+	/*
+	 * Firstly ensure that distributed transaction is started. Then, force
+	 * the transaction manager to use 2PC while running the task on the placements.
+	 */
+	if (taskRequiresTwoPhaseCommit)
+	{
+		BeginOrContinueCoordinatedTransaction();
+		CoordinatedTransactionUse2PC();
+	}
+
 	/* prevent replicas of the same shard from diverging */
 	AcquireExecutorShardLock(task, operation);
+
+	/*
+	 * Mark connections for all placements as critical and establish connections to all placements
+	 * at once.
+	 */
+	if (taskRequiresTwoPhaseCommit)
+	{
+		GetPlacementConnectionsReadyForTwoPhaseCommit(taskPlacementList);
+	}
 
 	/*
 	 * Try to run the query to completion on one placement. If the query fails
@@ -866,6 +887,34 @@ ExecuteSingleTask(QueryDesc *queryDesc, Task *task,
 	}
 
 	return resultsOK;
+}
+
+
+/*
+ * GetPlacementConnectionsReadyForTwoPhaseCommit iterates over the task placement list,
+ * get connections and mark them as critical. Finally, establishes connections to all
+ * placements at once.
+ */
+static void
+GetPlacementConnectionsReadyForTwoPhaseCommit(List *taskPlacementList)
+{
+	ListCell *taskPlacementCell = NULL;
+	List *multiConnectionList = NIL;
+
+	foreach(taskPlacementCell, taskPlacementList)
+	{
+		ShardPlacement *taskPlacement = (ShardPlacement *) lfirst(taskPlacementCell);
+		int connectionFlags = SESSION_LIFESPAN;
+		MultiConnection *multiConnection = GetNodeConnection(connectionFlags,
+															 taskPlacement->nodeName,
+															 taskPlacement->nodePort);
+
+		MarkRemoteTransactionCritical(multiConnection);
+
+		multiConnectionList = lappend(multiConnectionList, multiConnection);
+	}
+
+	RemoteTransactionsBeginIfNecessary(multiConnectionList);
 }
 
 

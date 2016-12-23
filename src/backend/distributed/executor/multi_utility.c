@@ -1043,6 +1043,12 @@ VacuumTaskList(Oid relationId, VacuumStmt *vacuumStmt)
 		task->anchorShardId = shardId;
 		task->taskPlacementList = FinalizedShardPlacementList(shardId);
 
+		/*
+		 * We currently do not take replication model into account for tasks other
+		 * than modifications. Thus, set it to invalid.
+		 */
+		task->replicationModel = REPLICATION_MODEL_INVALID;
+
 		taskList = lappend(taskList, task);
 	}
 
@@ -1979,6 +1985,12 @@ DDLTaskList(Oid relationId, const char *commandString)
 		task->anchorShardId = shardId;
 		task->taskPlacementList = FinalizedShardPlacementList(shardId);
 
+		/*
+		 * We currently do not take replication model into account for tasks other
+		 * than modifications. Thus, set it to invalid.
+		 */
+		task->replicationModel = REPLICATION_MODEL_INVALID;
+
 		taskList = lappend(taskList, task);
 	}
 
@@ -2041,6 +2053,12 @@ ForeignKeyTaskList(Oid leftRelationId, Oid rightRelationId,
 		task->dependedTaskList = NULL;
 		task->anchorShardId = leftShardId;
 		task->taskPlacementList = FinalizedShardPlacementList(leftShardId);
+
+		/*
+		 * We currently do not take replication model into account for tasks other
+		 * than modifications. Thus, set it to invalid.
+		 */
+		task->replicationModel = REPLICATION_MODEL_INVALID;
 
 		taskList = lappend(taskList, task);
 	}
